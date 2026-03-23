@@ -15,6 +15,7 @@ export const Users: React.FC = () => {
     email: '',
     password: '',
     role: 'store' as Role,
+    external_unit_id: '',
     storeIds: [] as string[],
   });
   const [submitting, setSubmitting] = useState(false);
@@ -67,13 +68,15 @@ export const Users: React.FC = () => {
       const { error: userError } = await supabase.from('users').insert({
         id: userId,
         name: newUser.name,
+        email: newUser.email,
         role: newUser.role,
+        external_unit_id: (newUser.role === 'store' || newUser.role === 'regional') ? newUser.external_unit_id : null,
       });
 
       if (userError) throw userError;
 
-      // 3. Link to stores
-      if (newUser.storeIds.length > 0) {
+      // 3. Link to stores (only for regional)
+      if (newUser.role === 'regional' && newUser.storeIds.length > 0) {
         const userStores = newUser.storeIds.map((storeId) => ({
           user_id: userId,
           store_id: storeId,
@@ -84,7 +87,7 @@ export const Users: React.FC = () => {
       }
 
       // Reset form and refresh
-      setNewUser({ name: '', email: '', password: '', role: 'store', storeIds: [] });
+      setNewUser({ name: '', email: '', password: '', role: 'store', external_unit_id: '', storeIds: [] });
       setShowForm(false);
       fetchData();
     } catch (err: any) {
@@ -189,31 +192,67 @@ export const Users: React.FC = () => {
               </div>
             </div>
 
-            {newUser.role === 'regional' && (
+            {newUser.role === 'store' && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Lojas Vinculadas (Selecione múltiplas)
+                  Loja Vinculada (ID Externo)
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-xl bg-gray-50">
+                <select
+                  required
+                  value={newUser.external_unit_id}
+                  onChange={(e) => setNewUser({ ...newUser, external_unit_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                >
+                  <option value="">Selecione a loja...</option>
                   {stores.map((store) => (
-                    <label
-                      key={store.id}
-                      className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
-                        newUser.storeIds.includes(store.id)
-                          ? 'bg-blue-50 border-blue-200 text-blue-700'
-                          : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        name="storeSelection"
-                        checked={newUser.storeIds.includes(store.id)}
-                        onChange={() => handleStoreSelection(store.id)}
-                        className="hidden"
-                      />
-                      <span className="text-sm font-medium truncate">{store.name}</span>
-                    </label>
+                    <option key={store.id} value={store.external_unit_id || store.id}>
+                      {store.name} {store.external_unit_id ? `(ID: ${store.external_unit_id})` : ''}
+                    </option>
                   ))}
+                </select>
+              </div>
+            )}
+
+            {newUser.role === 'regional' && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ID Externo do Regional (Integração)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newUser.external_unit_id}
+                    onChange={(e) => setNewUser({ ...newUser, external_unit_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ex: REG-01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Lojas Vinculadas (Selecione múltiplas)
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-xl bg-gray-50">
+                    {stores.map((store) => (
+                      <label
+                        key={store.id}
+                        className={`flex items-center p-2 rounded-lg border cursor-pointer transition-colors ${
+                          newUser.storeIds.includes(store.id)
+                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                            : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          name="storeSelection"
+                          checked={newUser.storeIds.includes(store.id)}
+                          onChange={() => handleStoreSelection(store.id)}
+                          className="hidden"
+                        />
+                        <span className="text-sm font-medium truncate">{store.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -228,7 +267,11 @@ export const Users: React.FC = () => {
               </button>
               <button
                 type="submit"
-                disabled={submitting || (newUser.role === 'regional' && newUser.storeIds.length === 0)}
+                disabled={
+                  submitting || 
+                  (newUser.role === 'regional' && (newUser.storeIds.length === 0 || !newUser.external_unit_id)) ||
+                  (newUser.role === 'store' && !newUser.external_unit_id)
+                }
                 className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar Usuário'}
@@ -245,8 +288,9 @@ export const Users: React.FC = () => {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600">Nome</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-600">E-mail</th>
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600">Perfil</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">ID</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Unidade (ID)</th>
               </tr>
             </thead>
             <tbody>
@@ -260,6 +304,9 @@ export const Users: React.FC = () => {
                       <span className="text-sm font-medium text-gray-900">{user.name}</span>
                     </div>
                   </td>
+                  <td className="py-3 px-4 text-sm text-gray-600">
+                    {user.email || '-'}
+                  </td>
                   <td className="py-3 px-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                       user.role === 'admin' ? 'bg-purple-100 text-purple-800 border-purple-200' :
@@ -272,14 +319,14 @@ export const Users: React.FC = () => {
                       {user.role}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-xs text-gray-500 font-mono">
-                    {user.id.substring(0, 8)}...
+                  <td className="py-3 px-4 text-sm text-gray-500 font-mono">
+                    {user.external_unit_id || '-'}
                   </td>
                 </tr>
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-gray-500">
+                  <td colSpan={4} className="py-8 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>

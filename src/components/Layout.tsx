@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Users, LogOut } from 'lucide-react';
+import { Home, BarChart3, Users, LogOut, Store as StoreIcon } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 export const Layout: React.FC = () => {
@@ -13,6 +13,7 @@ export const Layout: React.FC = () => {
       ? [
           { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
           { path: '/users', label: 'Usuários', icon: Users },
+          { path: '/stores', label: 'Lojas', icon: StoreIcon },
         ]
       : []),
   ];

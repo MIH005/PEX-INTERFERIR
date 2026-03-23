@@ -13,6 +13,7 @@ import { Home } from './pages/Home';
 import { PlanDetails } from './pages/PlanDetails';
 import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
+import { Stores } from './pages/Stores';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
               <Route element={<AdminRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/users" element={<Users />} />
+                <Route path="/stores" element={<Stores />} />
               </Route>
             </Route>
           </Route>

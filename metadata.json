@@ -1,5 +1,5 @@
 {
-  "name": "Planos de Ação",
+  "name": "PEX INTERFERIR",
   "description": "Aplicativo mobile-first para acompanhamento de planos de ação operacionais com Supabase.",
   "requestFramePermissions": [
     "camera"

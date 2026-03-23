@@ -10,14 +10,18 @@ export type Role = 'store' | 'regional' | 'admin';
 export interface User {
   id: string;
   name: string;
+  email?: string;
   role: Role;
+  external_unit_id?: string;
 }
 
 export interface Store {
   id: string;
   name: string;
+  external_unit_id?: string;
   city: string;
   email: string;
+  region_id?: string;
 }
 
 export type ActionPlanStatus = 'Pendente' | 'Em andamento' | 'Concluído' | 'Cancelado';
@@ -40,6 +44,8 @@ export interface ActionPlan {
   due_date: string;
   status: ActionPlanStatus;
   created_at: string;
+  created_by?: string;
+  responsible_user?: string;
   store?: Store;
 }
 
