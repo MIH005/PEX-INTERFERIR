@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, User, Store, Role } from '../lib/supabase';
-import { Loader2, Plus, Users as UsersIcon, Shield, Store as StoreIcon, AlertCircle, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Plus, Users as UsersIcon, Shield, Store as StoreIcon, AlertCircle, Trash2, Pencil, ChevronDown, ChevronUp, Search } from 'lucide-react';
 
 export const Users: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -25,6 +25,20 @@ export const Users: React.FC = () => {
   // Delete state
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Accordion state
+  const [expandedRoles, setExpandedRoles] = useState<Record<string, boolean>>({
+    admin: true,
+    regional: true,
+    store: true,
+  });
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const toggleRole = (role: string) => {
+    setExpandedRoles(prev => ({ ...prev, [role]: !prev[role] }));
+  };
 
   useEffect(() => {
     fetchData();
@@ -217,6 +231,90 @@ export const Users: React.FC = () => {
     }
   };
 
+  const renderUserTable = (roleKey: string, roleUsers: User[], title: string, icon: React.ReactNode) => {
+    const isExpanded = expandedRoles[roleKey];
+    
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6 transition-all duration-200">
+        <div 
+          className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3 cursor-pointer hover:bg-gray-100 transition-colors"
+          onClick={() => toggleRole(roleKey)}
+        >
+          <div className="p-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+            {icon}
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 flex-1">{title}</h3>
+          <span className="bg-gray-200 text-gray-700 py-0.5 px-2.5 rounded-full text-xs font-semibold ml-2">
+            {roleUsers.length}
+          </span>
+          <div className="text-gray-400 ml-2">
+            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </div>
+        </div>
+        
+        {isExpanded && (
+          <div className="overflow-x-auto animate-in fade-in slide-in-from-top-2 duration-200">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600">Nome</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600">E-mail</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600">Unidade (ID)</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleUsers.map((user) => (
+                  <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold flex-shrink-0">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{user.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {user.email || '-'}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-500 font-mono">
+                      {user.external_unit_id || '-'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleEditClick(user); }}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar usuário"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setUserToDelete(user); }}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir usuário"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {roleUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-500">
+                      Nenhum usuário encontrado nesta categoria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full py-12">
@@ -225,23 +323,41 @@ export const Users: React.FC = () => {
     );
   }
 
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Gestão de Usuários</h2>
-        <button
-          onClick={() => {
-            if (showForm) {
-              handleCancelForm();
-            } else {
-              setShowForm(true);
-            }
-          }}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>{showForm ? 'Cancelar' : 'Novo Usuário'}</span>
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar usuário..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => {
+              if (showForm) {
+                handleCancelForm();
+              } else {
+                setShowForm(true);
+              }
+            }}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="hidden sm:inline">{showForm ? 'Cancelar' : 'Novo Usuário'}</span>
+            <span className="sm:hidden">{showForm ? 'Cancelar' : 'Novo'}</span>
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -416,77 +532,10 @@ export const Users: React.FC = () => {
       )}
 
       {/* Users List */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Nome</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">E-mail</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Perfil</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Unidade (ID)</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold flex-shrink-0">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{user.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-600">
-                    {user.email || '-'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                      user.role === 'admin' ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                      user.role === 'regional' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                      'bg-gray-100 text-gray-800 border-gray-200'
-                    }`}>
-                      {user.role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
-                      {user.role === 'regional' && <UsersIcon className="w-3 h-3 mr-1" />}
-                      {user.role === 'store' && <StoreIcon className="w-3 h-3 mr-1" />}
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-500 font-mono">
-                    {user.external_unit_id || '-'}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleEditClick(user)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar usuário"
-                      >
-                        <Pencil className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => setUserToDelete(user)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Excluir usuário"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-gray-500">
-                    Nenhum usuário encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-6">
+        {renderUserTable('admin', filteredUsers.filter(u => u.role === 'admin'), 'Administradores', <Shield className="w-5 h-5 text-purple-600" />)}
+        {renderUserTable('regional', filteredUsers.filter(u => u.role === 'regional'), 'Regionais', <UsersIcon className="w-5 h-5 text-blue-600" />)}
+        {renderUserTable('store', filteredUsers.filter(u => u.role === 'store'), 'Lojas', <StoreIcon className="w-5 h-5 text-green-600" />)}
       </div>
 
       {/* Delete Confirmation Modal */}
