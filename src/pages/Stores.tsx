@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, Store } from '../lib/supabase';
-import { Loader2, Plus, Store as StoreIcon, AlertCircle, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Plus, Store as StoreIcon, AlertCircle, Trash2, Pencil, UserPlus, CheckCircle2 } from 'lucide-react';
 
 export const Stores: React.FC = () => {
   const [stores, setStores] = useState<Store[]>([]);
+  const [storeUsers, setStoreUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -22,6 +23,11 @@ export const Stores: React.FC = () => {
   const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Create User state
+  const [storeToCreateUser, setStoreToCreateUser] = useState<Store | null>(null);
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
   useEffect(() => {
     fetchStores();
   }, []);
@@ -30,13 +36,21 @@ export const Stores: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
-        .from('stores')
-        .select('*')
-        .order('name');
+      const [{ data: storesData, error: fetchError }, { data: usersData, error: usersError }] = await Promise.all([
+        supabase.from('stores').select('*').order('name'),
+        supabase.from('users').select('external_unit_id').eq('role', 'store')
+      ]);
 
       if (fetchError) throw fetchError;
-      setStores(data || []);
+      if (usersError) throw usersError;
+
+      setStores(storesData || []);
+      
+      const userMap: Record<string, boolean> = {};
+      usersData?.forEach(u => {
+        if (u.external_unit_id) userMap[u.external_unit_id] = true;
+      });
+      setStoreUsers(userMap);
     } catch (err: any) {
       console.error('Error fetching stores:', err);
       setError(err.message || 'Erro ao carregar lojas.');
@@ -110,6 +124,23 @@ export const Stores: React.FC = () => {
     setError(null);
 
     try {
+      // First, delete related user_stores
+      const { error: userStoresError } = await supabase
+        .from('user_stores')
+        .delete()
+        .eq('store_id', storeToDelete.id);
+
+      if (userStoresError) throw userStoresError;
+
+      // Second, delete related action_plans
+      const { error: actionPlansError } = await supabase
+        .from('action_plans')
+        .delete()
+        .eq('store_id', storeToDelete.id);
+
+      if (actionPlansError) throw actionPlansError;
+
+      // Finally, delete the store
       const { error: deleteError } = await supabase
         .from('stores')
         .delete()
@@ -121,10 +152,55 @@ export const Stores: React.FC = () => {
       fetchStores();
     } catch (err: any) {
       console.error('Error deleting store:', err);
-      setError(err.message || 'Erro ao excluir loja. Verifique se existem usuários ou planos de ação vinculados a ela.');
+      setError(err.message || 'Erro ao excluir loja.');
       setStoreToDelete(null);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleCreateStoreUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!storeToCreateUser) return;
+    
+    setIsCreatingUser(true);
+    setError(null);
+
+    try {
+      // 1. Create user in Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: storeToCreateUser.email || '',
+        password: newUserPassword,
+      });
+
+      if (authError) throw authError;
+
+      const userId = authData.user?.id;
+      if (!userId) throw new Error('Falha ao criar usuário no Auth.');
+
+      // 2. Insert into users table
+      const { error: userError } = await supabase.from('users').insert({
+        id: userId,
+        name: storeToCreateUser.name,
+        email: storeToCreateUser.email,
+        role: 'store',
+        external_unit_id: storeToCreateUser.external_unit_id,
+      });
+
+      if (userError) throw userError;
+
+      setStoreToCreateUser(null);
+      setNewUserPassword('');
+      fetchStores();
+    } catch (err: any) {
+      console.error('Error creating store user:', err);
+      if (err.message?.toLowerCase().includes('rate limit')) {
+        setError('Limite de criação de usuários excedido (proteção anti-spam do Supabase). Aguarde alguns instantes ou desative a confirmação de e-mail no painel do Supabase.');
+      } else {
+        setError(err.message || 'Erro ao criar usuário para a loja.');
+      }
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -244,6 +320,7 @@ export const Stores: React.FC = () => {
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600">ID Externo</th>
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600">Cidade</th>
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600">E-mail</th>
+                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Acesso</th>
                 <th className="py-3 px-4 text-sm font-semibold text-gray-600 text-right">Ações</th>
               </tr>
             </thead>
@@ -267,6 +344,24 @@ export const Stores: React.FC = () => {
                   <td className="py-3 px-4 text-sm text-gray-600">
                     {store.email}
                   </td>
+                  <td className="py-3 px-4">
+                    {store.external_unit_id && storeUsers[store.external_unit_id] ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Possui Acesso
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setStoreToCreateUser(store)}
+                        disabled={!store.email || !store.external_unit_id}
+                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={!store.email ? "Loja precisa ter e-mail cadastrado" : !store.external_unit_id ? "Loja precisa ter ID Externo" : "Criar usuário para esta loja"}
+                      >
+                        <UserPlus className="w-3 h-3 mr-1" />
+                        Criar Acesso
+                      </button>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -289,7 +384,7 @@ export const Stores: React.FC = () => {
               ))}
               {stores.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-gray-500">
+                  <td colSpan={6} className="py-8 text-center text-gray-500">
                     Nenhuma loja encontrada.
                   </td>
                 </tr>
@@ -308,7 +403,7 @@ export const Stores: React.FC = () => {
               Tem certeza que deseja excluir a loja <strong>{storeToDelete.name}</strong>? Esta ação não pode ser desfeita.
               <br /><br />
               <span className="text-sm text-red-600 font-medium">
-                Atenção: A exclusão falhará se existirem usuários ou planos de ação vinculados a esta loja.
+                Atenção: Todos os planos de ação e vínculos de usuários com esta loja também serão excluídos.
               </span>
             </p>
             
@@ -328,6 +423,53 @@ export const Stores: React.FC = () => {
                 {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Excluir'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {storeToCreateUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Criar Acesso para Loja</h3>
+            <p className="text-gray-600 mb-4 text-sm">
+              Isso criará um usuário para a loja <strong>{storeToCreateUser.name}</strong> com o e-mail <strong>{storeToCreateUser.email}</strong>.
+            </p>
+            <form onSubmit={handleCreateStoreUser}>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Senha Provisória</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoreToCreateUser(null);
+                    setNewUserPassword('');
+                  }}
+                  disabled={isCreatingUser}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingUser || newUserPassword.length < 6}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {isCreatingUser ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
+                  <span>{isCreatingUser ? 'Criando...' : 'Criar Acesso'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

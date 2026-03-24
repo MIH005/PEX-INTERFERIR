@@ -14,6 +14,7 @@ import { PlanDetails } from './pages/PlanDetails';
 import { Dashboard } from './pages/Dashboard';
 import { Users } from './pages/Users';
 import { Stores } from './pages/Stores';
+import { Profile } from './pages/Profile';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Home />} />
               <Route path="/plan/:id" element={<PlanDetails />} />
+              <Route path="/profile" element={<Profile />} />
               
               <Route element={<AdminRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />

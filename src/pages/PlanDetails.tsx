@@ -19,6 +19,8 @@ export const PlanDetails: React.FC = () => {
   
   const [newComment, setNewComment] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isEditingDate, setIsEditingDate] = useState(false);
@@ -201,6 +203,17 @@ export const PlanDetails: React.FC = () => {
     if (!file || !plan) return;
 
     setUploading(true);
+    setUploadProgress(0);
+    setUploadMessage(null);
+
+    // Simulate progress since standard supabase-js upload doesn't have onProgress
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + 10;
+      });
+    }, 500);
+
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
@@ -237,10 +250,17 @@ export const PlanDetails: React.FC = () => {
           comment: 'Nova evidência adicionada.',
         });
 
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setUploadMessage({ type: 'success', text: 'Evidência enviada com sucesso!' });
       fetchPlanDetails();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setUploadMessage(null), 3000);
     } catch (err: any) {
+      clearInterval(progressInterval);
       console.error('Error uploading file:', err);
-      alert('Erro ao fazer upload da imagem.');
+      setUploadMessage({ type: 'error', text: 'Erro ao fazer upload da imagem.' });
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -429,6 +449,30 @@ export const PlanDetails: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {uploading && (
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>Enviando arquivo...</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {uploadMessage && (
+          <div className={`mb-4 p-3 rounded-xl flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-2 ${
+            uploadMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {uploadMessage.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+            {uploadMessage.text}
+          </div>
+        )}
 
         {evidences.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">

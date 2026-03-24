@@ -42,9 +42,10 @@ export const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Planos de Ação
+      <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
+        <img src="/logo.svg" alt="PEX INTERFERIR" className="w-20 h-20 mb-4" />
+        <h2 className="text-center text-3xl font-extrabold text-gray-900">
+          PEX INTERFERIR
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           Acompanhamento operacional
