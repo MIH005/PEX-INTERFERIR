@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, Store } from '../lib/supabase';
-import { Loader2, Plus, Store as StoreIcon, AlertCircle, Trash2, Pencil, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Loader2, Plus, Store as StoreIcon, AlertCircle, Trash2, Pencil, UserPlus, CheckCircle2, Search } from 'lucide-react';
 
 export const Stores: React.FC = () => {
   const [stores, setStores] = useState<Store[]>([]);
@@ -27,6 +27,9 @@ export const Stores: React.FC = () => {
   const [storeToCreateUser, setStoreToCreateUser] = useState<Store | null>(null);
   const [newUserPassword, setNewUserPassword] = useState('');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  // Search state
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetchStores();
@@ -212,25 +215,48 @@ export const Stores: React.FC = () => {
     );
   }
 
+  const filteredStores = stores.filter(store => {
+    const searchLower = search.toLowerCase();
+    return (
+      store.name.toLowerCase().includes(searchLower) ||
+      (store.external_unit_id && store.external_unit_id.toLowerCase().includes(searchLower)) ||
+      (store.city && store.city.toLowerCase().includes(searchLower)) ||
+      (store.email && store.email.toLowerCase().includes(searchLower))
+    );
+  });
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Gestão de Lojas</h2>
-        <button
-          onClick={() => {
-            if (showForm) {
-              handleCancelForm();
-            } else {
-              setNewStore({ name: '', external_unit_id: '', city: '', email: '' });
-              setEditingStore(null);
-              setShowForm(true);
-            }
-          }}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nova Loja</span>
-        </button>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar loja..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 w-full sm:w-64 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => {
+              if (showForm) {
+                handleCancelForm();
+              } else {
+                setNewStore({ name: '', external_unit_id: '', city: '', email: '' });
+                setEditingStore(null);
+                setShowForm(true);
+              }
+            }}
+            className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nova Loja</span>
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -325,9 +351,16 @@ export const Stores: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {stores.map((store) => (
-                <tr key={store.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4">
+              {filteredStores.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-gray-500">
+                    Nenhuma loja encontrada.
+                  </td>
+                </tr>
+              ) : (
+                filteredStores.map((store) => (
+                  <tr key={store.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold flex-shrink-0">
                         <StoreIcon className="w-4 h-4" />
@@ -381,14 +414,7 @@ export const Stores: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {stores.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
-                    Nenhuma loja encontrada.
-                  </td>
-                </tr>
-              )}
+              )))}
             </tbody>
           </table>
         </div>
