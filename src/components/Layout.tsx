@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Users, LogOut, Store as StoreIcon, UserCircle } from 'lucide-react';
+import { Home, BarChart3, Users, LogOut, Store as StoreIcon, UserCircle, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
 export const Layout: React.FC = () => {
   const { profile, signOut } = useAuth();
   const location = useLocation();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Planos', icon: Home },
@@ -39,12 +40,30 @@ export const Layout: React.FC = () => {
       </header>
 
       {/* Sidebar (Desktop) */}
-      <aside className="hidden md:flex flex-col w-64 bg-white shadow-md min-h-screen sticky top-0">
-        <div className="p-4 border-b flex items-center gap-3">
-          <img src="/logo.svg" alt="PEX INTERFERIR" className="w-10 h-10" />
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">PEX<br/>INTERFERIR</h1>
+      <aside 
+        className={`hidden md:flex flex-col bg-white shadow-md h-screen sticky top-0 transition-all duration-300 ease-in-out z-20 relative ${
+          isSidebarCollapsed ? 'w-20' : 'w-64'
+        }`}
+      >
+        <div className={`p-4 border-b flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} h-[73px]`}>
+          <div className={`flex items-center gap-3 overflow-hidden transition-all duration-300 ${isSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+            <img src="/logo.svg" alt="PEX INTERFERIR" className="w-10 h-10 flex-shrink-0" />
+            <h1 className="text-xl font-bold text-gray-900 leading-tight whitespace-nowrap">PEX<br/>INTERFERIR</h1>
+          </div>
+          {isSidebarCollapsed && (
+            <img src="/logo.svg" alt="PEX INTERFERIR" className="w-10 h-10 flex-shrink-0 absolute" />
+          )}
         </div>
-        <nav className="flex-1 p-4 space-y-2">
+        
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors z-30"
+          title={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
+        >
+          {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -52,14 +71,21 @@ export const Layout: React.FC = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${
+                title={isSidebarCollapsed ? item.label : undefined}
+                className={`flex items-center px-4 py-3 rounded-xl transition-colors ${
+                  isSidebarCollapsed ? 'justify-center' : 'space-x-3'
+                } ${
                   isActive
                     ? 'bg-blue-50 text-blue-700 font-medium'
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className={`whitespace-nowrap transition-all duration-300 ${
+                  isSidebarCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'
+                }`}>
+                  {item.label}
+                </span>
               </Link>
             );
           })}

@@ -4,7 +4,7 @@ import { supabase, ActionPlan, ActionUpdate, Evidence, ActionPlanStatus, normali
 import { useAuth } from '../lib/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, ArrowLeft, Camera, Upload, MessageSquare, CheckCircle, Clock, XCircle, AlertTriangle, Edit2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Camera, Upload, MessageSquare, CheckCircle, Clock, XCircle, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
 
 export const PlanDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +25,9 @@ export const PlanDetails: React.FC = () => {
   
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [newDueDate, setNewDueDate] = useState('');
+  
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -164,7 +167,7 @@ export const PlanDetails: React.FC = () => {
         .insert({
           action_plan_id: plan.id,
           user_id: profile?.id,
-          comment: `Data de vencimento alterada para ${format(new Date(newDueDate), 'dd/MM/yyyy')}`,
+          comment: `Data prevista de conclusão alterada para ${format(new Date(newDueDate), 'dd/MM/yyyy')}`,
         });
 
       fetchPlanDetails();
@@ -172,6 +175,41 @@ export const PlanDetails: React.FC = () => {
     } catch (err: any) {
       console.error('Error updating date:', err);
       alert('Erro ao atualizar data: ' + (err.message || 'Erro desconhecido'));
+    }
+  };
+
+  const handleDeletePlan = async () => {
+    if (!plan) return;
+    setIsDeleting(true);
+    try {
+      // Delete evidences
+      const { error: evidencesError } = await supabase
+        .from('evidences')
+        .delete()
+        .eq('action_plan_id', plan.id);
+      if (evidencesError) throw evidencesError;
+
+      // Delete updates
+      const { error: updatesError } = await supabase
+        .from('action_updates')
+        .delete()
+        .eq('action_plan_id', plan.id);
+      if (updatesError) throw updatesError;
+
+      // Delete plan
+      const { error: planError } = await supabase
+        .from('action_plans')
+        .delete()
+        .eq('id', plan.id);
+      if (planError) throw planError;
+
+      navigate('/');
+    } catch (err: any) {
+      console.error('Error deleting plan:', err);
+      setError(err.message || 'Erro ao excluir o plano.');
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -294,14 +332,23 @@ export const PlanDetails: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20 md:pb-0">
       {/* Header */}
-      <div className="flex items-center space-x-4 mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 bg-white rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h2 className="text-2xl font-bold text-gray-900">Editar Plano</h2>
+        </div>
         <button
-          onClick={() => navigate(-1)}
-          className="p-2 bg-white rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+          onClick={() => setShowDeleteModal(true)}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <Trash2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Excluir</span>
         </button>
-        <h2 className="text-2xl font-bold text-gray-900">Detalhes do Plano</h2>
       </div>
 
       {/* Main Info Card */}
@@ -312,9 +359,23 @@ export const PlanDetails: React.FC = () => {
             <p className="text-lg font-semibold text-gray-900">{plan.store?.name}</p>
           </div>
           <div className="text-left md:text-right">
-            <p className="text-sm font-medium text-gray-500 mb-1">Vencimento</p>
+            <div className="flex items-center md:justify-end gap-2 mb-1 group">
+              <p className="text-sm font-medium text-gray-500">Data prevista de conclusão</p>
+              {!isEditingDate && (
+                <button
+                  onClick={() => {
+                    setNewDueDate(plan.due_date?.split('T')[0] || '');
+                    setIsEditingDate(true);
+                  }}
+                  className="text-gray-400 hover:text-blue-600 transition-colors"
+                  title="Editar data"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
             {isEditingDate ? (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center md:justify-end gap-2 mt-1">
                 <input
                   type="date"
                   value={newDueDate}
@@ -329,21 +390,9 @@ export const PlanDetails: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="flex items-center md:justify-end gap-2 group">
-                <p className="text-lg font-semibold text-gray-900">
-                  {plan.due_date ? format(new Date(plan.due_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                </p>
-                <button
-                  onClick={() => {
-                    setNewDueDate(plan.due_date?.split('T')[0] || '');
-                    setIsEditingDate(true);
-                  }}
-                  className="text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Editar data"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-              </div>
+              <p className="text-lg font-semibold text-gray-900">
+                {plan.due_date ? format(new Date(plan.due_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+              </p>
             )}
           </div>
         </div>
@@ -545,6 +594,34 @@ export const PlanDetails: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Excluir Plano de Ação</h3>
+            <p className="text-gray-600 mb-6">
+              Tem certeza que deseja excluir este plano de ação? Esta operação não pode ser desfeita e todos os históricos e evidências serão perdidos.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeletePlan}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

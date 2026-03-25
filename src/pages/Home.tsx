@@ -289,7 +289,7 @@ export const Home: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Vencimento a partir de</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Data prevista de conclusão a partir de</label>
                 <input
                   type="date"
                   value={dueDateStart}
@@ -298,7 +298,7 @@ export const Home: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Vencimento até</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Data prevista de conclusão até</label>
                 <input
                   type="date"
                   value={dueDateEnd}
