@@ -28,6 +28,22 @@ export const PlanDetails: React.FC = () => {
   
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'A iniciar':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Concluído':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'Cancelado':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -83,10 +99,29 @@ export const PlanDetails: React.FC = () => {
   const handleStatusChange = async (newStatus: ActionPlanStatus) => {
     if (!plan || plan.status === newStatus) return;
     
+    if (newStatus === 'Concluído' && evidences.length === 0) {
+      alert('É obrigatório anexar pelo menos uma evidência antes de concluir o plano.');
+      return;
+    }
+
+    if (newStatus === 'Cancelado') {
+      if (evidences.length === 0) {
+        alert('É obrigatório anexar pelo menos uma evidência antes de cancelar o plano.');
+        return;
+      }
+      setShowCancelModal(true);
+      return;
+    }
+
+    await executeStatusChange(newStatus);
+  };
+
+  const executeStatusChange = async (newStatus: ActionPlanStatus, reason?: string) => {
+    if (!plan) return;
+
     // Define possible variations for each status to bypass check constraint differences
     const statusVariations: Record<string, string[]> = {
-      'Pendente': ['Pendente', 'pendente', 'PENDENTE', 'pending', 'Pending', 'PENDING', 'Aberto', 'aberto', 'ABERTO', 'A Fazer', 'a fazer', 'A FAZER', 'To Do', 'to do', 'TO DO', 'Não Iniciado', 'Não iniciado', 'Nao Iniciado', 'Nao iniciado', 'NÃO INICIADO', 'NAO INICIADO', 'Pendente ', '1', '0'],
-      'Em andamento': ['Em andamento', 'Em Andamento', 'em andamento', 'EM ANDAMENTO', 'em_andamento', 'EM_ANDAMENTO', 'in_progress', 'In Progress', 'IN PROGRESS', 'in progress', 'In progress', 'Em_andamento', 'em-andamento', 'Em-andamento', 'Em Execução', 'Em execução', 'em execução', 'EM EXECUÇÃO', 'Em Progresso', 'Em progresso', 'em progresso', 'EM PROGRESSO', 'Fazendo', 'fazendo', 'FAZENDO', 'Em andamento ', '2', '1'],
+      'A iniciar': ['A iniciar', 'a iniciar', 'A INICIAR', 'Pendente', 'pendente', 'PENDENTE', 'Em andamento', 'em andamento'],
       'Concluído': ['Concluído', 'Concluido', 'concluído', 'concluido', 'CONCLUÍDO', 'CONCLUIDO', 'completed', 'Completed', 'COMPLETED', 'done', 'Done', 'DONE', 'Fechado', 'fechado', 'FECHADO', 'Feito', 'feito', 'FEITO', 'Concluído ', 'Concluido ', '3', '2'],
       'Cancelado': ['Cancelado', 'cancelado', 'CANCELADO', 'cancelled', 'Cancelled', 'CANCELLED', 'canceled', 'Canceled', 'CANCELED', 'Cancelado ', '4', '3']
     };
@@ -96,22 +131,35 @@ export const PlanDetails: React.FC = () => {
     let lastError: any = null;
     let successfulVariant = newStatus;
 
+    let updateFailed = false;
+
     for (const variant of variationsToTry) {
       try {
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('action_plans')
-          .update({ status: variant })
-          .eq('id', plan.id);
+          .update({ 
+            status: variant, 
+            store_id: plan.store_id,
+            description_problem: plan.description_problem,
+            action_plan: plan.action_plan,
+            due_date: plan.due_date
+          })
+          .eq('id', plan.id)
+          .select();
 
-        if (!updateError) {
+        if (updateError) {
+          lastError = updateError;
+          // If it's not a check constraint violation (23514), stop trying
+          if (updateError.code !== '23514') {
+            break;
+          }
+        } else if (data && data.length > 0) {
           success = true;
           successfulVariant = variant as ActionPlanStatus;
           break;
-        }
-        
-        lastError = updateError;
-        // If it's not a check constraint violation (23514), stop trying
-        if (updateError.code !== '23514') {
+        } else {
+          lastError = new Error('Nenhuma linha atualizada na tabela action_plans. Verifique suas permissões (RLS).');
+          updateFailed = true;
           break;
         }
       } catch (err) {
@@ -120,28 +168,45 @@ export const PlanDetails: React.FC = () => {
       }
     }
 
-    if (!success) {
+    if (!success && !updateFailed) {
       console.error('Error updating status:', lastError);
       alert(`Erro ao atualizar status. O banco de dados rejeitou todas as variações tentadas: ${variationsToTry.join(', ')}. Erro original: ${lastError?.message || 'Erro desconhecido'}`);
       return;
     }
 
     try {
-      // Add history record
+      // Add history record (this might trigger a database function to update the plan status if RLS blocked direct update)
+      const commentText = reason 
+        ? `Status alterado de ${plan.status} para ${newStatus}. Motivo: ${reason}`
+        : `Status alterado de ${plan.status} para ${newStatus}`;
+        
       const { error: historyError } = await supabase
         .from('action_updates')
         .insert({
           action_plan_id: plan.id,
           user_id: profile?.id,
-          comment: `Status alterado de ${plan.status} para ${newStatus}`,
+          comment: commentText,
         });
 
       if (historyError) {
         console.error('Error inserting history:', historyError);
+        if (updateFailed) {
+           alert('Erro ao atualizar status: Você não tem permissão para alterar este plano.');
+           return;
+        }
       }
 
       // Refresh data
-      fetchPlanDetails();
+      await fetchPlanDetails();
+      
+      // Check if status actually changed (in case both direct update failed and trigger didn't work)
+      if (updateFailed) {
+         // We need to check the fresh data
+         const { data: freshPlan } = await supabase.from('action_plans').select('status').eq('id', plan.id).single();
+         if (freshPlan && freshPlan.status === plan.status) {
+            alert('Aviso: O status não foi alterado. Você pode não ter permissão para alterar o status deste plano.');
+         }
+      }
     } catch (err: any) {
       console.error('Error after updating status:', err);
     }
@@ -156,7 +221,13 @@ export const PlanDetails: React.FC = () => {
     try {
       const { error: updateError } = await supabase
         .from('action_plans')
-        .update({ due_date: newDueDate })
+        .update({ 
+          due_date: newDueDate, 
+          store_id: plan.store_id,
+          status: plan.status,
+          description_problem: plan.description_problem,
+          action_plan: plan.action_plan
+        })
         .eq('id', plan.id);
 
       if (updateError) throw updateError;
@@ -197,16 +268,25 @@ export const PlanDetails: React.FC = () => {
       if (updatesError) throw updatesError;
 
       // Delete plan
-      const { error: planError } = await supabase
+      const { data: deletedPlan, error: planError } = await supabase
         .from('action_plans')
         .delete()
-        .eq('id', plan.id);
+        .eq('id', plan.id)
+        .select();
+        
       if (planError) throw planError;
+      
+      if (!deletedPlan || deletedPlan.length === 0) {
+        alert('Você não tem permissão para excluir este plano (RLS bloqueou a exclusão).');
+        setShowDeleteModal(false);
+        setIsDeleting(false);
+        return;
+      }
 
       navigate('/');
     } catch (err: any) {
       console.error('Error deleting plan:', err);
-      setError(err.message || 'Erro ao excluir o plano.');
+      alert(err.message || 'Erro ao excluir o plano.');
       setShowDeleteModal(false);
     } finally {
       setIsDeleting(false);
@@ -342,17 +422,28 @@ export const PlanDetails: React.FC = () => {
           </button>
           <h2 className="text-2xl font-bold text-gray-900">Editar Plano</h2>
         </div>
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Excluir</span>
-        </button>
+        {profile?.role === 'admin' && (
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Excluir</span>
+          </button>
+        )}
       </div>
 
       {/* Main Info Card */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div className="flex flex-wrap gap-3 items-center mb-6">
+          <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(plan.status)}`}>
+            {plan.status}
+          </span>
+          <span className="px-3 py-1 rounded-full text-sm font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+            {plan.checklist_type || 'Agenda do Líder'}
+          </span>
+        </div>
+        
         <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6">
           <div>
             <p className="text-sm font-medium text-gray-500 mb-1">Loja</p>
@@ -399,15 +490,15 @@ export const PlanDetails: React.FC = () => {
 
         <div className="space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Problema</h3>
-            <p className="text-gray-900 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <h3 className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Identificação</h3>
+            <p className="text-gray-900 bg-gray-50 p-4 rounded-xl border border-gray-100 font-semibold">
               {plan.description_problem}
             </p>
           </div>
           
           <div>
-            <h3 className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Plano de Ação</h3>
-            <p className="text-gray-900 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <h3 className="text-sm font-medium text-gray-500 mb-2 uppercase tracking-wider">Comentário Final / Descrição</h3>
+            <p className="text-gray-900 bg-gray-50 p-4 rounded-xl border border-gray-100 whitespace-pre-wrap">
               {plan.action_plan}
             </p>
           </div>
@@ -417,29 +508,17 @@ export const PlanDetails: React.FC = () => {
       {/* Status Controls */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Status Atual: <span className="font-normal">{plan.status}</span></h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button
-            onClick={() => handleStatusChange('Pendente')}
+            onClick={() => handleStatusChange('A iniciar')}
             className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-              plan.status === 'Pendente'
+              plan.status === 'A iniciar'
                 ? 'bg-yellow-50 border-yellow-400 text-yellow-700'
                 : 'border-gray-100 hover:border-yellow-200 hover:bg-yellow-50 text-gray-600'
             }`}
           >
-            <AlertTriangle className={`w-6 h-6 mb-2 ${plan.status === 'Pendente' ? 'text-yellow-500' : ''}`} />
-            <span className="text-sm font-medium">Pendente</span>
-          </button>
-          
-          <button
-            onClick={() => handleStatusChange('Em andamento')}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-              plan.status === 'Em andamento'
-                ? 'bg-blue-50 border-blue-400 text-blue-700'
-                : 'border-gray-100 hover:border-blue-200 hover:bg-blue-50 text-gray-600'
-            }`}
-          >
-            <Clock className={`w-6 h-6 mb-2 ${plan.status === 'Em andamento' ? 'text-blue-500' : ''}`} />
-            <span className="text-sm font-medium text-center leading-tight">Em andamento</span>
+            <AlertTriangle className={`w-6 h-6 mb-2 ${plan.status === 'A iniciar' ? 'text-yellow-500' : ''}`} />
+            <span className="text-sm font-medium">A iniciar</span>
           </button>
           
           <button
@@ -617,6 +696,49 @@ export const PlanDetails: React.FC = () => {
               >
                 {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Cancelar Plano de Ação</h3>
+            <p className="text-gray-600 mb-4">
+              Por favor, informe o motivo do cancelamento deste plano de ação.
+            </p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Motivo do cancelamento..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 mb-6 min-h-[100px]"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => {
+                  if (!cancelReason.trim()) {
+                    alert('Por favor, informe o motivo do cancelamento.');
+                    return;
+                  }
+                  setShowCancelModal(false);
+                  executeStatusChange('Cancelado', cancelReason);
+                  setCancelReason('');
+                }}
+                disabled={!cancelReason.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Confirmar Cancelamento
               </button>
             </div>
           </div>

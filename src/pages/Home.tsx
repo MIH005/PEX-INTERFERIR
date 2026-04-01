@@ -127,10 +127,8 @@ export const Home: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Pendente':
+      case 'A iniciar':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Em andamento':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Concluído':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'Cancelado':
@@ -237,8 +235,7 @@ export const Home: React.FC = () => {
                 className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[140px]"
               >
                 <option value="all">Todos os Status</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Em andamento">Em andamento</option>
+                <option value="A iniciar">A iniciar</option>
                 <option value="Concluído">Concluído</option>
                 <option value="Cancelado">Cancelado</option>
               </select>
@@ -454,14 +451,19 @@ export const Home: React.FC = () => {
                     className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-300 transition-all flex flex-col h-full"
                   >
                     <div className="flex justify-between items-start mb-3">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                          plan.status
-                        )}`}
-                      >
-                        {plan.status}
-                      </span>
-                      <div className="flex items-center text-gray-500 text-sm">
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
+                            plan.status
+                          )}`}
+                        >
+                          {plan.status}
+                        </span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                          {plan.checklist_type || 'Agenda do Líder'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-gray-500 text-sm whitespace-nowrap ml-2">
                         <Calendar className="w-4 h-4 mr-1" />
                         {plan.due_date ? format(new Date(plan.due_date), 'dd/MM/yyyy', { locale: ptBR }) : 'Sem data'}
                       </div>
@@ -501,14 +503,19 @@ export const Home: React.FC = () => {
               className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col h-full"
             >
               <div className="flex justify-between items-start mb-3">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                    plan.status
-                  )}`}
-                >
-                  {plan.status}
-                </span>
-                <div className="flex items-center text-gray-500 text-sm">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
+                      plan.status
+                    )}`}
+                  >
+                    {plan.status}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                    {plan.checklist_type || 'Agenda do Líder'}
+                  </span>
+                </div>
+                <div className="flex items-center text-gray-500 text-sm whitespace-nowrap ml-2">
                   <Calendar className="w-4 h-4 mr-1" />
                   {plan.due_date ? format(new Date(plan.due_date), 'dd/MM/yyyy', { locale: ptBR }) : 'Sem data'}
                 </div>

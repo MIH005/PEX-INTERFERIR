@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase, ActionPlan, Store, normalizeStatus } from '../lib/supabase';
 import { Loader2, TrendingUp, AlertTriangle, CheckCircle, Clock, Download, Activity, X } from 'lucide-react';
 
-type KpiType = 'Total' | 'Pendentes' | 'Em andamento' | 'Concluídos' | 'Atrasados' | null;
+type KpiType = 'Total' | 'A iniciar' | 'Concluídos' | 'Cancelados' | 'Atrasados' | null;
 
 export const Dashboard: React.FC = () => {
   const [plans, setPlans] = useState<ActionPlan[]>([]);
@@ -59,8 +59,8 @@ export const Dashboard: React.FC = () => {
   }
 
   const totalPlans = plans.length;
-  const pendingPlans = plans.filter((p) => p.status === 'Pendente').length;
-  const inProgressPlans = plans.filter((p) => p.status === 'Em andamento').length;
+  const pendingPlans = plans.filter((p) => p.status === 'A iniciar').length;
+  const canceledPlans = plans.filter((p) => p.status === 'Cancelado').length;
   const completedPlans = plans.filter((p) => p.status === 'Concluído').length;
   
   const today = new Date();
@@ -85,8 +85,8 @@ export const Dashboard: React.FC = () => {
     csvRows.push(['Relatório de Dashboard Estratégico']);
     csvRows.push([]);
     csvRows.push(['KPIs']);
-    csvRows.push(['Total de Planos', 'Pendentes', 'Em andamento', 'Concluídos', 'Atrasados']);
-    csvRows.push([totalPlans, pendingPlans, inProgressPlans, completedPlans, delayedPlans]);
+    csvRows.push(['Total de Planos', 'A iniciar', 'Cancelados', 'Concluídos', 'Atrasados']);
+    csvRows.push([totalPlans, pendingPlans, canceledPlans, completedPlans, delayedPlans]);
     csvRows.push([]);
     
     // Table
@@ -114,10 +114,10 @@ export const Dashboard: React.FC = () => {
     
     const today = new Date();
     switch (selectedKpi) {
-      case 'Pendentes':
-        return plans.filter((p) => p.status === 'Pendente');
-      case 'Em andamento':
-        return plans.filter((p) => p.status === 'Em andamento');
+      case 'A iniciar':
+        return plans.filter((p) => p.status === 'A iniciar');
+      case 'Cancelados':
+        return plans.filter((p) => p.status === 'Cancelado');
       case 'Concluídos':
         return plans.filter((p) => p.status === 'Concluído');
       case 'Atrasados':
@@ -158,25 +158,25 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div 
-          onClick={() => setSelectedKpi(selectedKpi === 'Pendentes' ? null : 'Pendentes')}
-          className={`bg-white rounded-2xl p-6 shadow-sm border flex flex-col items-center text-center cursor-pointer transition-all ${selectedKpi === 'Pendentes' ? 'border-yellow-500 ring-2 ring-yellow-200' : 'border-gray-100 hover:border-yellow-300'}`}
+          onClick={() => setSelectedKpi(selectedKpi === 'A iniciar' ? null : 'A iniciar')}
+          className={`bg-white rounded-2xl p-6 shadow-sm border flex flex-col items-center text-center cursor-pointer transition-all ${selectedKpi === 'A iniciar' ? 'border-yellow-500 ring-2 ring-yellow-200' : 'border-gray-100 hover:border-yellow-300'}`}
         >
           <div className="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center mb-3">
             <AlertTriangle className="w-6 h-6 text-yellow-600" />
           </div>
           <p className="text-3xl font-bold text-gray-900">{pendingPlans}</p>
-          <p className="text-sm font-medium text-gray-500 mt-1">Pendentes</p>
+          <p className="text-sm font-medium text-gray-500 mt-1">A iniciar</p>
         </div>
 
         <div 
-          onClick={() => setSelectedKpi(selectedKpi === 'Em andamento' ? null : 'Em andamento')}
-          className={`bg-white rounded-2xl p-6 shadow-sm border flex flex-col items-center text-center cursor-pointer transition-all ${selectedKpi === 'Em andamento' ? 'border-purple-500 ring-2 ring-purple-200' : 'border-gray-100 hover:border-purple-300'}`}
+          onClick={() => setSelectedKpi(selectedKpi === 'Cancelados' ? null : 'Cancelados')}
+          className={`bg-white rounded-2xl p-6 shadow-sm border flex flex-col items-center text-center cursor-pointer transition-all ${selectedKpi === 'Cancelados' ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-100 hover:border-red-300'}`}
         >
-          <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center mb-3">
-            <Activity className="w-6 h-6 text-purple-600" />
+          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
+            <X className="w-6 h-6 text-red-600" />
           </div>
-          <p className="text-3xl font-bold text-gray-900">{inProgressPlans}</p>
-          <p className="text-sm font-medium text-gray-500 mt-1">Em andamento</p>
+          <p className="text-3xl font-bold text-gray-900">{canceledPlans}</p>
+          <p className="text-sm font-medium text-gray-500 mt-1">Cancelados</p>
         </div>
 
         <div 
@@ -237,8 +237,8 @@ export const Dashboard: React.FC = () => {
                       <td className="py-3 px-4 text-sm text-gray-600">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           plan.status === 'Concluído' ? 'bg-green-100 text-green-800' :
-                          plan.status === 'Em andamento' ? 'bg-purple-100 text-purple-800' :
-                          plan.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                          plan.status === 'Cancelado' ? 'bg-red-100 text-red-800' :
+                          plan.status === 'A iniciar' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {plan.status}

@@ -26,7 +26,7 @@ export const Layout: React.FC = () => {
       <header className="bg-white shadow-sm sticky top-0 z-40 md:hidden border-b border-gray-100">
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="PEX INTERFERIR" className="w-8 h-8" />
+            <img src="/logo.svg?v=5" alt="PEX INTERFERIR" className="h-8 w-auto" />
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">PEX INTERFERIR</h1>
           </div>
           <button 
@@ -47,11 +47,11 @@ export const Layout: React.FC = () => {
       >
         <div className={`p-4 border-b flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} h-[73px]`}>
           <div className={`flex items-center gap-3 overflow-hidden transition-all duration-300 ${isSidebarCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-            <img src="/logo.svg" alt="PEX INTERFERIR" className="w-10 h-10 flex-shrink-0" />
+            <img src="/logo.svg?v=5" alt="PEX INTERFERIR" className="h-10 w-auto flex-shrink-0" />
             <h1 className="text-xl font-bold text-gray-900 leading-tight whitespace-nowrap">PEX<br/>INTERFERIR</h1>
           </div>
           {isSidebarCollapsed && (
-            <img src="/logo.svg" alt="PEX INTERFERIR" className="w-10 h-10 flex-shrink-0 absolute" />
+            <img src="/logo.svg?v=5" alt="PEX INTERFERIR" className="h-10 w-auto flex-shrink-0 absolute" />
           )}
         </div>
         

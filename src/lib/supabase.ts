@@ -24,16 +24,14 @@ export interface Store {
   region_id?: string;
 }
 
-export type ActionPlanStatus = 'Pendente' | 'Em andamento' | 'Concluído' | 'Cancelado';
+export type ActionPlanStatus = 'A iniciar' | 'Concluído' | 'Cancelado';
 
 export function normalizeStatus(status: string): ActionPlanStatus {
-  if (!status) return 'Pendente';
+  if (!status) return 'A iniciar';
   const s = status.toString().toLowerCase().trim();
-  if (s === 'pendente' || s === 'pending' || s === 'aberto' || s === 'a fazer' || s === 'to do' || s === 'não iniciado' || s === 'nao iniciado' || s === '1' || s === '0') return 'Pendente';
-  if (s === 'em andamento' || s === 'em_andamento' || s === 'em-andamento' || s === 'in progress' || s === 'in_progress' || s === 'em execução' || s === 'em execucao' || s === 'em progresso' || s === 'fazendo' || s === '2') return 'Em andamento';
   if (s === 'concluído' || s === 'concluido' || s === 'completed' || s === 'done' || s === 'fechado' || s === 'feito' || s === '3') return 'Concluído';
   if (s === 'cancelado' || s === 'cancelled' || s === 'canceled' || s === '4') return 'Cancelado';
-  return status as ActionPlanStatus;
+  return 'A iniciar';
 }
 
 export interface ActionPlan {
@@ -47,6 +45,8 @@ export interface ActionPlan {
   created_by?: string;
   responsible_user?: string;
   store?: Store;
+  checklist_type?: string;
+  external_evaluation_id?: string;
 }
 
 export interface ActionUpdate {

@@ -43,7 +43,7 @@ export const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <img src="/logo.svg" alt="PEX INTERFERIR" className="w-20 h-20 mb-4" />
+        <img src="/logo.svg?v=5" alt="PEX INTERFERIR" className="h-28 w-auto mb-2" />
         <h2 className="text-center text-3xl font-extrabold text-gray-900">
           PEX INTERFERIR
         </h2>
